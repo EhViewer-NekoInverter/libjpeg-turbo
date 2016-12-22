@@ -144,6 +144,7 @@ select_file_type(j_compress_ptr cinfo, FILE *infile)
 static const char *progname;    /* program name for error messages */
 static char *icc_filename;      /* for -icc switch */
 static char *outfilename;       /* for -outfile switch */
+boolean customdst;              /* for -customsrc switch */
 boolean memdst;                 /* for -memdst switch */
 boolean report;                 /* for -report switch */
 boolean strict;                 /* for -strict switch */
@@ -186,6 +187,11 @@ static void my_emit_message_fuzzer(j_common_ptr cinfo, int msg_level)
 }
 
 #endif
+
+
+static size_t custom_write(void *custom_stuff, unsigned char *buffer, size_t size) {
+  return fwrite(buffer, 1, size, (FILE*) custom_stuff);
+}
 
 
 LOCAL(void)
@@ -236,6 +242,7 @@ usage(void)
 #endif
   fprintf(stderr, "  -maxmemory N   Maximum memory to use (in kbytes)\n");
   fprintf(stderr, "  -outfile name  Specify name for output file\n");
+  fprintf(stderr, "  -customdst     Compress with custom function\n");
 #if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
   fprintf(stderr, "  -memdst        Compress to memory instead of file (useful for benchmarking)\n");
 #endif
@@ -284,6 +291,7 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
   is_targa = FALSE;
   icc_filename = NULL;
   outfilename = NULL;
+  customdst = FALSE;
   memdst = FALSE;
   report = FALSE;
   strict = FALSE;
@@ -404,6 +412,10 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
               progname);
       exit(EXIT_FAILURE);
 #endif
+
+    } else if (keymatch(arg, "customdst", 9)) {
+      /* Use custom destination manager */
+      customdst = TRUE;
 
     } else if (keymatch(arg, "memdst", 2)) {
       /* Use in-memory destination manager */
@@ -730,6 +742,9 @@ main(int argc, char **argv)
     jpeg_mem_dest(&cinfo, &outbuffer, &outsize);
   else
 #endif
+  if (customdst) {
+    jpeg_custom_dest(&cinfo, &custom_write, output_file);
+  } else
     jpeg_stdio_dest(&cinfo, output_file);
 
 #ifdef CJPEG_FUZZER
